@@ -1,0 +1,17 @@
+# Ignore everything...
+*
+
+# except for this file itself...
+!.gitignore
+
+# the source code...
+!blinky.c
+
+# the Makefile...
+!Makefile
+
+# the license...
+!LICENSE
+
+# and the README.
+!README.md
