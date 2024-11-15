@@ -1,17 +1,26 @@
-PREFIX   := arm-none-eabi-
-CC       := $(PREFIX)gcc
+PREFIX      := arm-none-eabi-
+CC          := $(PREFIX)gcc
+OBJCOPY     := $(PREFIX)objcopy
 
-CFLAGS   := -Wall -Wextra -std=c99
-LDFLAGS  :=
+CFLAGS      := -Wall -Wextra -Wundef -std=c99
+LDFLAGS     := -Tlinkerscript.ld -nostartfiles -nolibc -nostdlib
+TARGETFLAGS := -ffreestanding -mthumb -mcpu=cortex-m4 -mfloat-abi=hard -mfpu=fpv4-sp-d16
 
-SRC      := blinky.c
-OBJ      := $(SRC:%.c=obj/%.o)
+SRC         := blinky.c vector.c
+OBJ         := $(SRC:%.c=obj/%.o)
+FIRMWARE    := blinky
 
-build: $(OBJ)
+all: $(FIRMWARE).bin $(FIRMWARE).elf
 
-$(OBJ): $(SRC)
+$(FIRMWARE).bin: $(FIRMWARE).elf
+	$(OBJCOPY) -O binary $< $@
+
+$(FIRMWARE).elf: $(OBJ)
+	$(CC) $(LDFLAGS) $(TARGETFLAGS) -o $@ $(OBJ)
+
+obj/%.o: %.c
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) $(TARGETFLAGS) -c $< -o $@
 
 clean:
-	rm -rf obj/
+	rm -rf obj/ $(FIRMWARE).elf $(FIRMWARE).bin

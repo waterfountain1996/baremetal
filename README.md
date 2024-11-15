@@ -7,6 +7,42 @@ microcontroller, a 25Mhz external crystall oscillator and an on-board LED.
 
 ## Overview
 
+### Compiling and Linking
+
+While the compilation part is pretty straightforward, simply requiring a few flags to be passed
+to GCC, the linking part is a bit tricky. STM32F4 MCU has a built-in bootloader that starts
+execution at the second address (so at 0x04 byte offset) of its flash memory (which starts at 0x0800 0000).
+The beginning of the flash memory must contain what's called a "vector table", which is basically a
+memory map of interrupt handlers. That second address in flash memory is a pointer to a reset handler,
+a function that is executed first. Note that reset handler is **NOT** your `main()` function.
+
+In order for the linker to generate the desired memory layout for our firmware, we must provide
+it a linker script. A linker script is a special file that contains a set of instructions to lay
+out the sections, as well as specifies the program entry point and a few other things.
+
+The actual vector table is defined in `vector.c` file. Vector table is represented as a struct,
+fields of which are function pointers in the same order as specified in the reference manual.
+Every interrupt handler (and the reset handler) is a void-returning function that accepts 0 arguments.
+Since it's very unlikely that our firmware will use all 86 interrupt handlers available, we still
+need to fill the pointers for those handlers they can't be zero. To do that, we'll use a GCC attribute
+`__attribute__((weak, alias("null_handler")))` on a function declaration which basically means that
+unless the symbol is explicitly defined, it will be a reference to `null_handler()` that we defined
+in `vector.c`. There we also define the reset handler, which enables the access to the floating-point
+coprocessor and calls our `main()` function. This was taken from `libopencm3`'s reset handler.
+
+Back in the linker script, we emit a `EXTERN(vector_table)` command, which means that there's a symbol
+called `vector_table` and it should not be discarded when linking. We also set the entrypoint using
+`ENTRY(reset_handler)`. Next, we specify our memory regions (flash and RAM) and then we define the
+sections. The `.text` section is our code section and it's composed of a few input sections:
+`.vectors`, which is where our `vector_table` struct goes, `.text*` - code sections produced by
+the compiler, and `.rodata` which contains read-only data. The rest of the sections were
+copied almost verbatim from `libopencm3`, omitting ones that are required for C++.
+
+To recap: STM32F4 requires a specific memory layout that starts with a map of interrupt handlers,
+which we define by using external function declarations with placeholder/fallback values. Setting
+this up requires quite a bit of boilerplate so you probably don't want to do it by hand, unless
+you know what you're doing and/or have a pretty specific use case.
+
 ### Reset and Clock Control (RCC)
 
 #### Clock source
@@ -66,3 +102,4 @@ List of resources I've used for this project:
 1. [STM32F411CE datasheet](https://www.st.com/resource/en/datasheet/stm32f411ce.pdf)
 2. [STM32F411xC/E reference manual](https://www.st.com/resource/en/reference_manual/rm0383-stm32f411xce-advanced-armbased-32bit-mcus-stmicroelectronics.pdf)
 3. [libopencm3](http://libopencm3.org/docs/latest/html/index.html)
+4. [Bare Metal Programming Series](https://www.youtube.com/playlist?list=PLP29wDx6QmW7HaCrRydOnxcy8QmW0SNdQ)
